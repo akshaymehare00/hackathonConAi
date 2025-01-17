@@ -12,13 +12,6 @@ import {
 } from '@mui/material';
 import { Send, Mic, Person, Videocam, VideocamOff, VolumeUp } from '@mui/icons-material';
 
-// Simulated questions that would come from websocket
-const simulatedQuestions = [
-  "I need to interrupt you there. Could you tell me about a challenging project you worked on?",
-  "Sorry to cut in, but I'd like to know more about your leadership experience.",
-  "Interesting point. Let me ask you specifically about your problem-solving approach."
-];
-
 function Interview({ cvData, onComplete }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -26,11 +19,9 @@ function Interview({ cvData, onComplete }) {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [stream, setStream] = useState(null);
-  const [interruptionIndex, setInterruptionIndex] = useState(0);
   const videoRef = useRef(null);
   const recognitionRef = useRef(null);
   const speechSynthesisRef = useRef(null);
-  const interruptionTimerRef = useRef(null);
 
   useEffect(() => {
     const initialMessage = "Hello! I'm your AI interviewer today. I've reviewed your CV and I'm ready to begin the interview. Are you ready to start?";
@@ -50,6 +41,7 @@ function Interview({ cvData, onComplete }) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             finalTranscript += transcript + ' ';
+            // Send final transcript to API
             await processTranscript(finalTranscript.trim());
           } else {
             interimTranscript += transcript;
@@ -72,53 +64,8 @@ function Interview({ cvData, onComplete }) {
       if (speechSynthesisRef.current) {
         window.speechSynthesis.cancel();
       }
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current);
-      }
     };
   }, []);
-
-  // Simulate interruption when recording starts
-  useEffect(() => {
-    if (isRecording) {
-      // Random time between 8-15 seconds for interruption
-      const interruptionTime = Math.floor(Math.random() * (15000 - 8000) + 8000);
-      
-      interruptionTimerRef.current = setTimeout(() => {
-        if (interruptionIndex < simulatedQuestions.length) {
-          handleInterruption(simulatedQuestions[interruptionIndex]);
-          setInterruptionIndex(prev => prev + 1);
-        }
-      }, interruptionTime);
-    } else {
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current);
-      }
-    }
-
-    return () => {
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current);
-      }
-    };
-  }, [isRecording, interruptionIndex]);
-
-  const handleInterruption = (question) => {
-    // Stop recording
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
-    }
-
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
-
-    // Add the interruption message
-    setMessages(prev => [...prev, { text: question, sender: 'ai', isInterruption: true }]);
-
-    // Speak the interruption
-    speakText(question);
-  };
 
   const processTranscript = async (text) => {
     try {
@@ -190,9 +137,6 @@ function Interview({ cvData, onComplete }) {
   const toggleRecording = () => {
     if (isRecording) {
       recognitionRef.current?.stop();
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current);
-      }
     } else {
       recognitionRef.current?.start();
     }
@@ -292,7 +236,7 @@ function Interview({ cvData, onComplete }) {
                   }}
                 >
                   {message.sender === 'ai' && (
-                    <Avatar sx={{ bgcolor: message.isInterruption ? 'error.main' : 'primary.main', mr: 1 }}>
+                    <Avatar sx={{ bgcolor: 'primary.main', mr: 1 }}>
                       <Person />
                     </Avatar>
                   )}
@@ -300,9 +244,7 @@ function Interview({ cvData, onComplete }) {
                     sx={{
                       maxWidth: '70%',
                       p: 2,
-                      bgcolor: message.sender === 'ai' 
-                        ? message.isInterruption ? 'error.light' : 'grey.100'
-                        : 'primary.main',
+                      bgcolor: message.sender === 'ai' ? 'grey.100' : 'primary.main',
                       color: message.sender === 'ai' ? 'text.primary' : 'white',
                       position: 'relative'
                     }}
