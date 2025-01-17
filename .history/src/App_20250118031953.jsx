@@ -28,7 +28,6 @@ import {
 import CVUpload from './Components/CVUpload';
 import Interview from './Components/Interview';
 import Analytics from './Components/Analytics';
-import EmailListAnalytics from './Components/EmailListAnalytics';
 
 const theme = createTheme({
   palette: {
@@ -269,27 +268,16 @@ function AppContent() {
               )
             } 
           />
-          <Route 
-    path="/analytics" 
-    element={
-      role === 'interviewer' ? (
-        <EmailListAnalytics candidateData={formData} />
-      ) : (
-        <Navigate to="/" />
-      )
-    } 
-  />
-  <Route 
-    path="/analytics/details" 
-    element={
-      role === 'interviewer' ? (
-        <Analytics candidateData={formData} />
-      ) : (
-        <Navigate to="/" />
-      )
-    } 
-  />
-        </Routes>
+         <Route 
+  path="/analytics" 
+  element={
+    role === 'interviewer' ? (
+      <EmailListAnalytics candidateData={formData} />
+    ) : (
+      <Navigate to="/" />
+    )
+  } 
+/>
       </Box>
 
       <Dialog 

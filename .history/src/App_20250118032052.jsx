@@ -270,25 +270,15 @@ function AppContent() {
             } 
           />
           <Route 
-    path="/analytics" 
-    element={
-      role === 'interviewer' ? (
-        <EmailListAnalytics candidateData={formData} />
-      ) : (
-        <Navigate to="/" />
-      )
-    } 
-  />
-  <Route 
-    path="/analytics/details" 
-    element={
-      role === 'interviewer' ? (
-        <Analytics candidateData={formData} />
-      ) : (
-        <Navigate to="/" />
-      )
-    } 
-  />
+  path="/analytics" 
+  element={
+    role === 'interviewer' ? (
+      <EmailListAnalytics candidateData={formData} />
+    ) : (
+      <Navigate to="/" />
+    )
+  } 
+/>
         </Routes>
       </Box>
 

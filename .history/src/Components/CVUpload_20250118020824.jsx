@@ -60,15 +60,6 @@ function CVUpload({ onUpload, onComplete, formData, onFormChange }) {
   const handleNext = () => {
     if (validateStep()) {
       if (activeStep === steps.length - 1) {
-        // Log all form data when reaching the final step
-        console.log('Form Data:', {
-          ...formData,
-          cvFile: {
-            name: file?.name,
-            size: file?.size,
-            type: file?.type
-          }
-        });
         onComplete();
       } else {
         setActiveStep((prev) => prev + 1);
@@ -80,7 +71,6 @@ function CVUpload({ onUpload, onComplete, formData, onFormChange }) {
     setActiveStep((prev) => prev - 1);
   };
 
-  // Rest of the component remains the same...
   const renderStepContent = (step) => {
     switch (step) {
       case 0:
