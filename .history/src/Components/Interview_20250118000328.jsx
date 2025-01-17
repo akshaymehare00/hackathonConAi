@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import * as faceapi from 'face-api.js';
 import {
   Paper,
   Typography,
@@ -9,9 +8,7 @@ import {
   Button,
   Avatar,
   IconButton,
-  Grid,
-  Alert,
-  Snackbar
+  Grid
 } from '@mui/material';
 import { Send, Mic, Person, Videocam, VideocamOff, VolumeUp } from '@mui/icons-material';
 
@@ -22,40 +19,12 @@ function Interview({ cvData, onComplete }) {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [stream, setStream] = useState(null);
-  const [isFaceDetected, setIsFaceDetected] = useState(false);
-  const [alertCount, setAlertCount] = useState(0);
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-  const [isInterviewActive, setIsInterviewActive] = useState(false);
-  
   const videoRef = useRef(null);
   const recognitionRef = useRef(null);
   const speechSynthesisRef = useRef(null);
-  const faceCheckIntervalRef = useRef(null);
-  const noFaceTimeoutRef = useRef(null);
 
   useEffect(() => {
-    loadFaceDetectionModels();
-    return () => {
-      clearInterval(faceCheckIntervalRef.current);
-      clearTimeout(noFaceTimeoutRef.current);
-    };
-  }, []);
-
-  const loadFaceDetectionModels = async () => {
-    try {
-      await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
-      await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
-      await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
-    } catch (error) {
-      console.error('Error loading face detection models:', error);
-      setAlertMessage('Error loading face detection models. Please refresh the page.');
-      setShowAlert(true);
-    }
-  };
-
-  useEffect(() => {
-    const initialMessage = "Hello! I'm your AI interviewer today. Please ensure you're visible in the camera to begin the interview. I'll review your CV once we start.";
+    const initialMessage = "Hello! I'm your AI interviewer today. I've reviewed your CV and I'm ready to begin the interview. Are you ready to start?";
     setMessages([{ text: initialMessage, sender: 'ai' }]);
     speakText(initialMessage);
 
@@ -65,8 +34,6 @@ function Interview({ cvData, onComplete }) {
       recognition.interimResults = true;
       
       recognition.onresult = async (event) => {
-        if (!isFaceDetected) return;
-        
         let interimTranscript = '';
         let finalTranscript = '';
 
@@ -74,6 +41,7 @@ function Interview({ cvData, onComplete }) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             finalTranscript += transcript + ' ';
+            // Send final transcript to API
             await processTranscript(finalTranscript.trim());
           } else {
             interimTranscript += transcript;
@@ -86,90 +54,25 @@ function Interview({ cvData, onComplete }) {
       recognitionRef.current = recognition;
     }
 
-    return () => cleanup();
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      if (speechSynthesisRef.current) {
+        window.speechSynthesis.cancel();
+      }
+    };
   }, []);
 
-  const cleanup = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    if (speechSynthesisRef.current) {
-      window.speechSynthesis.cancel();
-    }
-    clearInterval(faceCheckIntervalRef.current);
-    clearTimeout(noFaceTimeoutRef.current);
-  };
-
-  const startFaceDetection = async () => {
-    if (!videoRef.current || !stream) return;
-
-    faceCheckIntervalRef.current = setInterval(async () => {
-      const detections = await faceapi.detectAllFaces(
-        videoRef.current,
-        new faceapi.TinyFaceDetectorOptions()
-      );
-
-      const facePresent = detections.length > 0;
-      setIsFaceDetected(facePresent);
-
-      if (!facePresent && isInterviewActive) {
-        handleNoFaceDetected();
-      } else if (facePresent) {
-        clearTimeout(noFaceTimeoutRef.current);
-        setAlertCount(0);
-      }
-    }, 1000);
-  };
-
-  const handleNoFaceDetected = () => {
-    if (alertCount >= 3) {
-      endInterview();
-      return;
-    }
-
-    setAlertMessage('Please remain visible in the camera frame.');
-    setShowAlert(true);
-    setAlertCount(prev => prev + 1);
-
-    noFaceTimeoutRef.current = setTimeout(() => {
-      if (!isFaceDetected) {
-        handleNoFaceDetected();
-      }
-    }, 10000); // 10 seconds between alerts
-  };
-
-  const startInterview = async () => {
-    if (!isFaceDetected) {
-      setAlertMessage('Please position yourself in front of the camera to begin the interview.');
-      setShowAlert(true);
-      return;
-    }
-
-    setIsInterviewActive(true);
-    const welcomeMessage = "Great! I can see you clearly now. I've reviewed your CV and I'm ready to begin the interview. Let's start with your first question...";
-    setMessages(prev => [...prev, { text: welcomeMessage, sender: 'ai' }]);
-    speakText(welcomeMessage);
-  };
-
-  const endInterview = () => {
-    cleanup();
-    setIsInterviewActive(false);
-    const endMessage = "Interview ended due to extended absence. Please restart when you're ready.";
-    setMessages(prev => [...prev, { text: endMessage, sender: 'ai' }]);
-    speakText(endMessage);
-    onComplete();
-  };
-
   const processTranscript = async (text) => {
-    if (!isFaceDetected || !isInterviewActive) return;
-
     try {
       setMessages(prev => [...prev, { text, sender: 'user' }]);
       setIsThinking(true);
 
+      // Mock API call - Replace with your actual API endpoint
       const response = await axios.post('YOUR_API_ENDPOINT', {
         transcript: text,
         cvData
@@ -189,12 +92,15 @@ function Interview({ cvData, onComplete }) {
 
   const speakText = (text) => {
     if ('speechSynthesis' in window) {
+      // Cancel any ongoing speech
       window.speechSynthesis.cancel();
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1;
       utterance.pitch = 1;
       utterance.volume = 1;
 
+      // Get available voices and set a natural-sounding one
       const voices = window.speechSynthesis.getVoices();
       const preferredVoice = voices.find(voice => 
         voice.lang === 'en-US' && voice.name.includes('Natural')
@@ -216,27 +122,19 @@ function Interview({ cvData, onComplete }) {
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
-      startFaceDetection();
     } catch (err) {
       console.error('Error accessing camera:', err);
-      setAlertMessage('Error accessing camera. Please check your camera permissions.');
-      setShowAlert(true);
     }
   };
 
   const stopCamera = () => {
-    cleanup();
-    setStream(null);
-    setIsFaceDetected(false);
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
   };
 
   const toggleRecording = () => {
-    if (!isFaceDetected || !isInterviewActive) {
-      setAlertMessage('Please ensure you are visible in the camera to record.');
-      setShowAlert(true);
-      return;
-    }
-
     if (isRecording) {
       recognitionRef.current?.stop();
     } else {
@@ -246,42 +144,25 @@ function Interview({ cvData, onComplete }) {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || !isFaceDetected || !isInterviewActive) return;
+    if (!input.trim()) return;
     await processTranscript(input);
     setInput('');
   };
 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-      <Snackbar
-        open={showAlert}
-        autoHideDuration={6000}
-        onClose={() => setShowAlert(false)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert severity="warning" onClose={() => setShowAlert(false)}>
-          {alertMessage}
-        </Alert>
-      </Snackbar>
-
       <Grid container spacing={2}>
+        {/* Left side - Video feed */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, height: '100%' }}>
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h6">Camera Feed</Typography>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                {isFaceDetected && (
-                  <Typography variant="body2" color="success.main">
-                    Face Detected
-                  </Typography>
-                )}
-                <IconButton 
-                  color="primary"
-                  onClick={stream ? stopCamera : startCamera}
-                >
-                  {stream ? <VideocamOff /> : <Videocam />}
-                </IconButton>
-              </Box>
+              <IconButton 
+                color="primary"
+                onClick={stream ? stopCamera : startCamera}
+              >
+                {stream ? <VideocamOff /> : <Videocam />}
+              </IconButton>
             </Box>
             <Box 
               sx={{ 
@@ -290,8 +171,7 @@ function Interview({ cvData, onComplete }) {
                 bgcolor: 'black',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative'
+                justifyContent: 'center'
               }}
             >
               <video
@@ -305,23 +185,12 @@ function Interview({ cvData, onComplete }) {
                   objectFit: 'cover'
                 }}
               />
-              {!isInterviewActive && isFaceDetected && (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={startInterview}
-                  sx={{ position: 'absolute', bottom: 16 }}
-                >
-                  Start Interview
-                </Button>
-              )}
             </Box>
             <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <IconButton
                 color={isRecording ? 'error' : 'primary'}
                 onClick={toggleRecording}
                 sx={{ width: 56, height: 56 }}
-                disabled={!isInterviewActive}
               >
                 <Mic sx={{ width: 32, height: 32 }} />
               </IconButton>
@@ -329,7 +198,6 @@ function Interview({ cvData, onComplete }) {
                 color="primary"
                 onClick={() => window.speechSynthesis.cancel()}
                 sx={{ width: 56, height: 56 }}
-                disabled={!isInterviewActive}
               >
                 <VolumeUp sx={{ width: 32, height: 32 }} />
               </IconButton>
@@ -337,6 +205,7 @@ function Interview({ cvData, onComplete }) {
           </Paper>
         </Grid>
 
+        {/* Right side - Chat and transcription */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ height: '100%', overflow: 'hidden' }}>
             <Box sx={{ p: 2, bgcolor: 'primary.main', color: 'white' }}>
@@ -412,13 +281,8 @@ function Interview({ cvData, onComplete }) {
                   placeholder="Type your response..."
                   variant="outlined"
                   size="small"
-                  disabled={!isInterviewActive}
                 />
-                <IconButton 
-                  color="primary" 
-                  onClick={handleSend}
-                  disabled={!isInterviewActive}
-                >
+                <IconButton color="primary" onClick={handleSend}>
                   <Send />
                 </IconButton>
               </Box>
@@ -431,7 +295,6 @@ function Interview({ cvData, onComplete }) {
               color="primary"
               size="large"
               onClick={onComplete}
-              disabled={!isInterviewActive}
             >
               End Interview & View Analytics
             </Button>

@@ -1,0 +1,30 @@
+{
+    "weightsManifest": [
+      {
+        "paths": [
+          "tiny_face_detector_model-shard1"
+        ],
+        "weights": [
+          {"name": "conv0/filters", "shape": [3, 3, 3, 16], "dtype": "float32"},
+          {"name": "conv0/bias", "shape": [16], "dtype": "float32"},
+          {"name": "conv1/depthwise_filter", "shape": [3, 3, 16, 1], "dtype": "float32"},
+          {"name": "conv1/pointwise_filter", "shape": [1, 1, 16, 32], "dtype": "float32"},
+          {"name": "conv1/bias", "shape": [32], "dtype": "float32"},
+          {"name": "conv2/depthwise_filter", "shape": [3, 3, 32, 1], "dtype": "float32"},
+          {"name": "conv2/pointwise_filter", "shape": [1, 1, 32, 64], "dtype": "float32"},
+          {"name": "conv2/bias", "shape": [64], "dtype": "float32"},
+          {"name": "conv3/depthwise_filter", "shape": [3, 3, 64, 1], "dtype": "float32"},
+          {"name": "conv3/pointwise_filter", "shape": [1, 1, 64, 128], "dtype": "float32"},
+          {"name": "conv3/bias", "shape": [128], "dtype": "float32"},
+          {"name": "conv4/depthwise_filter", "shape": [3, 3, 128, 1], "dtype": "float32"},
+          {"name": "conv4/pointwise_filter", "shape": [1, 1, 128, 256], "dtype": "float32"},
+          {"name": "conv4/bias", "shape": [256], "dtype": "float32"},
+          {"name": "conv5/depthwise_filter", "shape": [3, 3, 256, 1], "dtype": "float32"},
+          {"name": "conv5/pointwise_filter", "shape": [1, 1, 256, 512], "dtype": "float32"},
+          {"name": "conv5/bias", "shape": [512], "dtype": "float32"},
+          {"name": "conv6/filters", "shape": [1, 1, 512, 25], "dtype": "float32"},
+          {"name": "conv6/bias", "shape": [25], "dtype": "float32"}
+        ]
+      }
+    ]
+  }
