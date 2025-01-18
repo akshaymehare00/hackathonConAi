@@ -484,7 +484,6 @@ const confirmEndInterview = async () => {
     setIsSummaryLoading(true);
     setSummaryProgress(0);
     stopRecording();
-    setShowEndDialog(false)
 
     // Clean up resources
     if (stream) {

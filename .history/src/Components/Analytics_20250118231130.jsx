@@ -17,8 +17,7 @@ import {
   Email as EmailIcon,
   Phone as PhoneIcon,
   Event as EventIcon,
-  Work as WorkIcon,
-  Assessment as AssessmentIcon
+  Work as WorkIcon
 } from '@mui/icons-material';
 
 const Analytics = () => {
@@ -96,10 +95,10 @@ const Analytics = () => {
     );
   }
 
-  const { candidate, jd, summary, created_at } = interviewData;
+  const { candidate, jd, created_at } = interviewData;
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
       <Box textAlign="center" mb={6}>
         <Typography
@@ -199,67 +198,34 @@ const Analytics = () => {
           </Paper>
         </Grid>
 
-        {/* Right Column */}
+        {/* Job Description */}
         <Grid item xs={12} md={8}>
-          <Grid container direction="column" spacing={4}>
-            {/* Job Description */}
-            <Grid item>
-              <Paper
-                elevation={3}
-                sx={{
-                  p: 3,
-                  background: `linear-gradient(to bottom, ${theme.palette.background.paper}, ${theme.palette.background.default})`,
-                }}
-              >
-                <Box display="flex" alignItems="center" gap={1} mb={3}>
-                  <WorkIcon color="primary" sx={{ fontSize: 28 }} />
-                  <Typography variant="h5" fontWeight="bold">
-                    Job Description
-                  </Typography>
-                </Box>
-                <Divider sx={{ mb: 3 }} />
-                <Typography
-                  variant="body1"
-                  color="textSecondary"
-                  sx={{
-                    whiteSpace: 'pre-wrap',
-                    lineHeight: 1.7,
-                  }}
-                >
-                  {jd}
-                </Typography>
-              </Paper>
-            </Grid>
-
-            {/* Interview Summary */}
-            <Grid item>
-              <Paper
-                elevation={3}
-                sx={{
-                  p: 3,
-                  background: `linear-gradient(to bottom, ${theme.palette.background.paper}, ${theme.palette.background.default})`,
-                }}
-              >
-                <Box display="flex" alignItems="center" gap={1} mb={3}>
-                  <AssessmentIcon color="primary" sx={{ fontSize: 28 }} />
-                  <Typography variant="h5" fontWeight="bold">
-                    Interview Summary
-                  </Typography>
-                </Box>
-                <Divider sx={{ mb: 3 }} />
-                <Typography
-                  variant="body1"
-                  color="textSecondary"
-                  sx={{
-                    whiteSpace: 'pre-wrap',
-                    lineHeight: 1.7,
-                  }}
-                >
-                  {summary}
-                </Typography>
-              </Paper>
-            </Grid>
-          </Grid>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 3,
+              height: '100%',
+              background: `linear-gradient(to bottom, ${theme.palette.background.paper}, ${theme.palette.background.default})`,
+            }}
+          >
+            <Box display="flex" alignItems="center" gap={1} mb={3}>
+              <WorkIcon color="primary" sx={{ fontSize: 28 }} />
+              <Typography variant="h5" fontWeight="bold">
+                Job Description
+              </Typography>
+            </Box>
+            <Divider sx={{ mb: 3 }} />
+            <Typography
+              variant="body1"
+              color="textSecondary"
+              sx={{
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.7,
+              }}
+            >
+              {jd}
+            </Typography>
+          </Paper>
         </Grid>
       </Grid>
     </Container>

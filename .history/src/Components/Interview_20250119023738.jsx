@@ -21,8 +21,7 @@ import {
   SpeedDial,
   SpeedDialIcon,
   SpeedDialAction,
-  DialogContentText,
-  LinearProgress
+  DialogContentText
 } from '@mui/material';
 import { 
   Send, 
@@ -484,7 +483,6 @@ const confirmEndInterview = async () => {
     setIsSummaryLoading(true);
     setSummaryProgress(0);
     stopRecording();
-    setShowEndDialog(false)
 
     // Clean up resources
     if (stream) {
@@ -1006,7 +1004,6 @@ const LoadingMessage = ({ message }) => (
         </DialogActions>
       </Dialog>
 
-      {/* Warning Dialog remains the same */}
       {isSummaryLoading && (
   <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999 }}>
     <LinearProgress 
@@ -1020,7 +1017,6 @@ const LoadingMessage = ({ message }) => (
       }}
     />
   </Box>
-)}
     </Box>
   );
 }

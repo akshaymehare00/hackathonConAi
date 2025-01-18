@@ -21,8 +21,7 @@ import {
   SpeedDial,
   SpeedDialIcon,
   SpeedDialAction,
-  DialogContentText,
-  LinearProgress
+  DialogContentText
 } from '@mui/material';
 import { 
   Send, 
@@ -76,8 +75,7 @@ function Interview({ cvData, onComplete }) {
   const [audioChunks, setAudioChunks] = useState([]);
   const audioRecorderRef = useRef(null);
   const audioStreamRef = useRef(null);
-  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
-const [summaryProgress, setSummaryProgress] = useState(0);
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -290,38 +288,68 @@ const [summaryProgress, setSummaryProgress] = useState(0);
   };
 
   const downloadRecording = () => {
-    // Create and download video file
-    const videoBlob = new Blob(recordedChunks, {
-      type: 'video/webm;codecs=vp9,opus'
-    });
-
-    const videoUrl = URL.createObjectURL(videoBlob);
-    const videoLink = document.createElement('a');
-    videoLink.href = videoUrl;
-    videoLink.download = 'interview-video.webm';
-    document.body.appendChild(videoLink);
-    videoLink.click();
-    document.body.removeChild(videoLink);
-    URL.revokeObjectURL(videoUrl);
-
-    // Create and download audio file
-    const audioBlob = new Blob(audioChunks, {
-      type: 'audio/webm;codecs=opus'
-    });
-
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audioLink = document.createElement('a');
-    audioLink.href = audioUrl;
-    audioLink.download = 'interview-audio.webm';
-    audioLink.type = 'audio/webm';  // Set the link type explicitly
-    document.body.appendChild(audioLink);
-    audioLink.click();
-    document.body.removeChild(audioLink);
-    URL.revokeObjectURL(audioUrl);
-
-    // Upload both files to server
-    uploadRecording(videoBlob, audioBlob);
+    // Helper function to create and trigger download
+    const triggerDownload = (blob, filename) => {
+      // Ensure we have data to download
+      if (!blob || blob.size === 0) {
+        console.error(`No ${filename} data available to download`);
+        return;
+      }
+  
+      try {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        
+        // Append, click, and clean up
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up the URL object
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      } catch (error) {
+        console.error(`Error downloading ${filename}:`, error);
+      }
+    };
+  
+    let videoBlob = null;
+    let audioBlob = null;
+  
+    // Handle video download
+    if (recordedChunks.length > 0) {
+      try {
+        videoBlob = new Blob(recordedChunks, {
+          type: 'video/webm'
+        });
+        triggerDownload(videoBlob, 'interview-video.webm');
+      } catch (error) {
+        console.error('Error creating video blob:', error);
+      }
+    }
+  
+    // Handle audio download
+    if (audioChunks.length > 0) {
+      try {
+        audioBlob = new Blob(audioChunks, {
+          type: 'audio/webm'
+        });
+        console.log('Audio blob created:', audioBlob); // Debug log
+        triggerDownload(audioBlob, 'interview-audio.webm');
+      } catch (error) {
+        console.error('Error creating audio blob:', error);
+      }
+    }
+  
+    // Only upload if we have valid blobs
+    if (videoBlob || audioBlob) {
+      uploadRecordings(videoBlob, audioBlob);
+    }
   };
+}
+  
+  
   const uploadRecording = async (blob, audioBlob) => {
     try {
       const formData = new FormData();
@@ -339,26 +367,26 @@ const [summaryProgress, setSummaryProgress] = useState(0);
     }
   };
   const startAutoRecording = (mediaStream) => {
-    try {
-      recordingStreamRef.current = mediaStream;
-      const mediaRecorder = new MediaRecorder(mediaStream, {
-        mimeType: 'video/webm;codecs=vp9,opus'
-      });
+  try {
+    recordingStreamRef.current = mediaStream;
+    const mediaRecorder = new MediaRecorder(mediaStream, {
+      mimeType: 'video/webm'  // Simplified MIME type
+    });
 
-      mediaRecorderRef.current = mediaRecorder;
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          setRecordedChunks(chunks => [...chunks, event.data]);
-        }
-      };
+    mediaRecorderRef.current = mediaRecorder;
+    
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        setRecordedChunks(chunks => [...chunks, event.data]);
+      }
+    };
 
-      // Start recording with 1-second time slices
-      mediaRecorder.start(1000);
-    } catch (error) {
-      console.error('Error starting recording:', error);
-    }
-  };
+    // Increase time slice for larger chunks
+    mediaRecorder.start(5000); // 5 second chunks
+  } catch (error) {
+    console.error('Error starting video recording:', error);
+  }
+};
   const stopCamera = () => {
     if (cameraWarnings >= 2) {
       terminateInterview('Camera was disabled too many times. Interview terminated.');
@@ -468,24 +496,8 @@ const [summaryProgress, setSummaryProgress] = useState(0);
     setShowEndDialog(true);
   };
 
-  // Add this useEffect for the progress animation
-useEffect(() => {
-  let progressTimer;
-  if (isSummaryLoading && summaryProgress < 95) {
-    progressTimer = setInterval(() => {
-      setSummaryProgress(prev => Math.min(prev + Math.random() * 15, 95));
-    }, 1000);
-  }
-  return () => clearInterval(progressTimer);
-}, [isSummaryLoading, summaryProgress]);
-
-const confirmEndInterview = async () => {
-  try {
-    setIsSummaryLoading(true);
-    setSummaryProgress(0);
+  const confirmEndInterview = () => {
     stopRecording();
-    setShowEndDialog(false)
-
     // Clean up resources
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -495,102 +507,28 @@ const confirmEndInterview = async () => {
       recognitionRef.current.stop();
     }
     window.speechSynthesis.cancel();
-
-    // Add initial end message
-    const initialEndMessage =
-      endReason === 'complete'
-        ? "Thank you for completing the interview. I'm now analyzing your responses to generate a comprehensive summary..."
-        : "Interview ended early. I'll still analyze the responses you provided...";
-
-    setMessages(prev => [
-      ...prev,
-      {
-        text: initialEndMessage,
-        sender: 'AI',
-        isInterruption: endReason === 'leave',
-      },
-    ]);
+    
+    // Add end message based on reason
+    const endMessage = endReason === 'complete' 
+      ? "Thank you for completing the interview. Let's review your performance."
+      : "Interview ended early. You can always come back and try again.";
+      
+    setMessages(prev => [...prev, { 
+      text: endMessage, 
+      sender: 'AI',
+      isInterruption: endReason === 'leave'
+    }]);
 
     // Show download button after recording is stopped
     if (recordedChunks.length > 0) {
       downloadRecording();
     }
-
-    // Add loading message with periodic updates
-    const loadingMessages = [
-      "Analyzing your communication style...",
-      "Evaluating response quality and relevance...",
-      "Assessing technical knowledge demonstration...",
-      "Compiling feedback and recommendations..."
-    ];
-
-    // Show loading messages sequentially
-    for (let i = 0; i < loadingMessages.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 2500));
-      setMessages(prev => [
-        ...prev,
-        {
-          text: loadingMessages[i],
-          sender: 'AI',
-          isLoading: true,
-        },
-      ]);
-    }
-
-    // Make API call
-    const response = await fetch(
-      `http://13.127.144.141:3004/api/interviews/generate_summary_by_interview_id/?interview_id=${localStorage.getItem('cvResponse')}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (response.ok) {
-      const data = await response.json();
-      console.log('API Success:', data);
-      setSummaryProgress(100);
-
-      // Add completion message
-      setMessages(prev => [
-        ...prev,
-        {
-          text: "Summary generation complete! Redirecting you to your performance review...",
-          sender: 'AI',
-        },
-      ]);
-
-      // Delay the onComplete to allow the user to read the final message
-      setTimeout(onComplete, 2000);
-    } else {
-      throw new Error(response.statusText);
-    }
-  } catch (error) {
-    console.error('Error in confirmEndInterview:', error);
-    setMessages(prev => [
-      ...prev,
-      {
-        text: "I apologize, but I encountered an error while generating your summary. Please try again or contact support if the issue persists.",
-        sender: 'AI',
-        isError: true,
-      },
-    ]);
-  } finally {
-    setIsSummaryLoading(false);
+    
+    
+    // Delay the onComplete to allow the user to read the end message
+    setTimeout(onComplete, 2000);
     setShowEndDialog(false);
-  }
-};
-  
-const LoadingMessage = ({ message }) => (
-  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-    <CircularProgress size={20} />
-    <Typography variant="body2" color="text.secondary">
-      {message}
-    </Typography>
-  </Box>
-);
+  };
 
   const speedDialActions = [
     { icon: <Assessment />, name: 'Complete Interview', onClick: () => handleEndInterview('complete') },
@@ -1007,20 +945,6 @@ const LoadingMessage = ({ message }) => (
       </Dialog>
 
       {/* Warning Dialog remains the same */}
-      {isSummaryLoading && (
-  <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999 }}>
-    <LinearProgress 
-      variant="determinate" 
-      value={summaryProgress} 
-      sx={{ 
-        height: 4,
-        '& .MuiLinearProgress-bar': {
-          transition: 'transform 0.5s ease'
-        }
-      }}
-    />
-  </Box>
-)}
     </Box>
   );
 }

@@ -86,12 +86,12 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
   return (
     <Box 
       sx={{ 
-        height: '100vh',
+        minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: theme.palette.grey[50],
-        overflow: 'hidden'
+        py: 4
       }}
     >
       <Paper 
@@ -100,19 +100,17 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
           width: '100%',
           maxWidth: 800,
           mx: 2,
-          p: { xs: 2, sm: 3 },
+          p: { xs: 2, sm: 4 },
           background: 'linear-gradient(to bottom right, #ffffff, #f8f9fa)',
           borderRadius: 2,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-          maxHeight: '95vh',
-          overflow: 'auto'
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
         }}
       >
         <Typography 
           variant="h4" 
           gutterBottom 
           sx={{ 
-            mb: 2,
+            mb: 4,
             color: theme.palette.primary.main,
             textAlign: 'center',
             fontWeight: 600,
@@ -124,9 +122,9 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
           Upload Your CV
         </Typography>
 
-        <Grid container spacing={2}>
+        <Grid container spacing={3}>
           <Grid item xs={12}>
-            <Stack spacing={2}>
+            <Stack spacing={3}>
               <TextField
                 fullWidth
                 label="Full Name"
@@ -135,7 +133,6 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 onChange={handleInputChange}
                 variant="outlined"
                 required
-                size="small"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     '&:hover fieldset': {
@@ -153,7 +150,6 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 onChange={handleInputChange}
                 variant="outlined"
                 required
-                size="small"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     '&:hover fieldset': {
@@ -170,7 +166,6 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 onChange={handleInputChange}
                 variant="outlined"
                 required
-                size="small"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     '&:hover fieldset': {
@@ -184,12 +179,11 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 label="Job Description"
                 name="jd"
                 multiline
-                rows={3}
+                rows={4}
                 value={formData.jd}
                 onChange={handleInputChange}
                 variant="outlined"
                 required
-                size="small"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     '&:hover fieldset': {
@@ -202,18 +196,18 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
           </Grid>
 
           <Grid item xs={12}>
-            <Divider sx={{ my: 2 }} />
+            <Divider sx={{ my: 3 }} />
           </Grid>
 
           <Grid item xs={12}>
             <Box
               sx={{
-                border: 2,
+                border: 3,
                 borderRadius: 2,
                 borderStyle: 'dashed',
                 borderColor: isDragging ? 'primary.main' : 'grey.300',
                 bgcolor: isDragging ? 'primary.50' : 'grey.50',
-                p: 3,
+                p: 4,
                 textAlign: 'center',
                 transition: 'all 0.3s ease',
                 cursor: 'pointer',
@@ -234,7 +228,7 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 color="primary" 
                 component="label"
                 sx={{ 
-                  mb: 1,
+                  mb: 2,
                   '&:hover': {
                     backgroundColor: 'primary.light',
                   }
@@ -249,9 +243,9 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                     if (file) handleFile(file);
                   }}
                 />
-                <CloudUpload sx={{ fontSize: 40 }} />
+                <CloudUpload sx={{ fontSize: 56 }} />
               </IconButton>
-              <Typography variant="h6" sx={{ mb: 0.5, color: 'text.primary', fontSize: '1rem' }}>
+              <Typography variant="h6" sx={{ mb: 1, color: 'text.primary' }}>
                 Drag and drop your CV here, or click to browse
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -265,7 +259,7 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
               <Paper 
                 variant="outlined" 
                 sx={{ 
-                  p: 1.5, 
+                  p: 2, 
                   bgcolor: 'primary.50',
                   display: 'flex',
                   alignItems: 'center',
@@ -280,15 +274,15 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
           )}
 
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
               <Button
                 variant="contained"
                 size="large"
                 onClick={handleSubmit}
                 disabled={!file || !formData.fullName || !formData.email || !formData.mobile}
                 sx={{ 
-                  minWidth: 180,
-                  height: 42,
+                  minWidth: 200,
+                  height: 48,
                   background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
                   '&:hover': {
                     background: 'linear-gradient(45deg, #1565c0, #1976d2)',
