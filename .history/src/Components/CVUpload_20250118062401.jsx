@@ -61,17 +61,14 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
     formDataToSend.append('jd', formData.jd);
   
     try {
-      const response = await fetch('http://13.127.144.141:3004/api/candidates/add-candidate/', {
+      const response = await fetch('http://10.1.0.201:8000/api/candidates/add-candidate/', {
         method: 'POST',
         body: formDataToSend,
       });
-      console.log("🚀 ~ handleSubmit ~ response:", response.data)
   
       if (response.ok) {
-
         const result = await response.json();
         console.log('API Response:', result);
-        localStorage.setItem('cvResponse', JSON.stringify(result.data));
   
         // Show success message
         setShowSuccess(true);
@@ -134,7 +131,7 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 name="jd"
                 multiline
                 rows={4}
-                
+
                 value={formData.jd}
                 onChange={handleInputChange}
                 variant="outlined"

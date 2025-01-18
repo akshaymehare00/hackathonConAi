@@ -25,6 +25,7 @@ function Interview({ cvData, onComplete }) {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [stream, setStream] = useState(null);
+  const [interruptionIndex, setInterruptionIndex] = useState(0);
   const [cameraWarnings, setCameraWarnings] = useState(0);
   const [microphoneWarnings, setMicrophoneWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
@@ -34,8 +35,6 @@ function Interview({ cvData, onComplete }) {
   const speechSynthesisRef = useRef(null);
   const interruptionTimerRef = useRef(null);
   const websocketRef = useRef(null);
-  const lastMessageRef = useRef(null);
-
   useEffect(() => {
     // Start camera and microphone automatically
     startCamera();
@@ -108,8 +107,6 @@ function Interview({ cvData, onComplete }) {
 
     websocketRef.current.onerror = (error) => {
       console.error('WebSocket error:', error);
-      // Attempt to reconnect on error
-      setTimeout(initializeWebSocket, 5000);
     };
 
     websocketRef.current.onclose = () => {
@@ -119,32 +116,28 @@ function Interview({ cvData, onComplete }) {
     };
   };
 
-  const handleAIResponse = (message) => {
-    // Check if this is the same as the last message
-    if (lastMessageRef.current === message) {
-      return; // Skip if it's a duplicate
-    }
-    
-    // Update the last message reference
-    lastMessageRef.current = message;
 
+  const handleAIResponse = (message) => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsRecording(false);
     }
 
     window.speechSynthesis.cancel();
-    
     setMessages(prev => [...prev, { text: message, sender: 'AI', isInterruption: true }]);
     speakText(message);
-
-    setTimeout(() => {
-      if (!isRecording) {
-        startRecording();
-      }
-    }, 1000);
   };
 
+  const handleInterruption = (question) => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+
+    window.speechSynthesis.cancel();
+    setMessages(prev => [...prev, { text: question, sender: 'AI', isInterruption: true }]);
+    speakText(question);
+  };
 
   const processTranscript = async (text) => {
     try {

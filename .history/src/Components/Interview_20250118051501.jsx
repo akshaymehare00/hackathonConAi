@@ -13,262 +13,155 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Alert
+  Alert,
+  Stack
 } from '@mui/material';
-import { Send, Mic, Person, Videocam, VideocamOff, VolumeUp } from '@mui/icons-material';
+import { 
+  Send, 
+  Mic, 
+  Person, 
+  Videocam, 
+  VideocamOff, 
+  VolumeUp,
+  FiberManualRecord,
+  Stop,
+  Download
+} from '@mui/icons-material';
 
+// Previous simulatedQuestions array remains the same...
 
 function Interview({ cvData, onComplete }) {
+  // Existing states...
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [stream, setStream] = useState(null);
+  const [interruptionIndex, setInterruptionIndex] = useState(0);
   const [cameraWarnings, setCameraWarnings] = useState(0);
   const [microphoneWarnings, setMicrophoneWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
+
+  // New states for video recording
+  const [isVideoRecording, setIsVideoRecording] = useState(false);
+  const [recordedBlob, setRecordedBlob] = useState(null);
+  const [showRecordingComplete, setShowRecordingComplete] = useState(false);
+
+  // Existing refs...
   const videoRef = useRef(null);
   const recognitionRef = useRef(null);
   const speechSynthesisRef = useRef(null);
   const interruptionTimerRef = useRef(null);
-  const websocketRef = useRef(null);
-  const lastMessageRef = useRef(null);
+  
+  // New refs for recording
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
 
-  useEffect(() => {
-    // Start camera and microphone automatically
-    startCamera();
-    startRecording();
-    initializeWebSocket();
+  // Existing useEffect and functions remain the same...
 
-    const initialMessage = "Hello! I'm your AI interviewer today. I've reviewed your CV and I'm ready to begin the interview. Are you ready to start?";
-    setMessages([{ text: initialMessage, sender: 'AI' }]);
-    speakText(initialMessage);
-
-    if ('webkitSpeechRecognition' in window) {
-      const recognition = new webkitSpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
+  // New function to start video recording
+  const startVideoRecording = () => {
+    if (stream) {
+      chunksRef.current = [];
+      const mediaRecorder = new MediaRecorder(stream);
       
-      recognition.onresult = async (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript + ' ';
-            await processTranscript(finalTranscript.trim());
-          } else {
-            interimTranscript += transcript;
-          }
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
         }
-
-        setTranscript(finalTranscript + interimTranscript);
       };
 
-      recognitionRef.current = recognition;
-    }
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        setRecordedBlob(blob);
+        setShowRecordingComplete(true);
+      };
 
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      if (speechSynthesisRef.current) {
-        window.speechSynthesis.cancel();
-      }
-      if (interruptionTimerRef.current) {
-        clearTimeout(interruptionTimerRef.current);
-      }
-    };
-  }, []);
-
-
-  const initializeWebSocket = () => {
-    websocketRef.current = new WebSocket(`ws://13.127.144.141:3004/ws/interview/${localStorage.getItem('cvResponse')}/`);
-
-    websocketRef.current.onopen = () => {
-      console.log('WebSocket connection established');
-    };
-
-    websocketRef.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.sender === 'AI') {
-          handleAIResponse(data.message);
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    };
-
-    websocketRef.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      // Attempt to reconnect on error
-      setTimeout(initializeWebSocket, 5000);
-    };
-
-    websocketRef.current.onclose = () => {
-      console.log('WebSocket connection closed');
-      // Attempt to reconnect after 5 seconds
-      setTimeout(initializeWebSocket, 5000);
-    };
-  };
-
-  const handleAIResponse = (message) => {
-    // Check if this is the same as the last message
-    if (lastMessageRef.current === message) {
-      return; // Skip if it's a duplicate
-    }
-    
-    // Update the last message reference
-    lastMessageRef.current = message;
-
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
-    }
-
-    window.speechSynthesis.cancel();
-    
-    setMessages(prev => [...prev, { text: message, sender: 'AI', isInterruption: true }]);
-    speakText(message);
-
-    setTimeout(() => {
-      if (!isRecording) {
-        startRecording();
-      }
-    }, 1000);
-  };
-
-
-  const processTranscript = async (text) => {
-    try {
-      setMessages(prev => [...prev, { text, sender: 'user' }]);
-      setIsThinking(true);
-
-      const response = await axios.post('http://13.127.144.141:3004/api/interview_conversation/post/', {
-        sender: 'candidate',
-        message: text,
-        interview:localStorage.getItem('cvResponse')
-        // cvData
-      });
-      console.log("🚀 ~ processTranscript ~ response:", response)
-
-      // const aiResponse = response.data || 
-      //   "Thank you for your response. Could you elaborate more on that?";
-
-      // setMessages(prev => [...prev, { text: aiResponse, sender: 'AI' }]);
-      // speakText(aiResponse);
-      setIsThinking(false);
-    } catch (error) {
-      console.error('Error processing transcript:', error);
-      setIsThinking(false);
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsVideoRecording(true);
     }
   };
 
-  const speakText = (text) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1;
-      utterance.pitch = 1;
-      utterance.volume = 1;
-
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(voice => 
-        voice.lang === 'en-US' && voice.name.includes('Natural')
-      ) || voices.find(voice => voice.lang === 'en-US');
-
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-
-      speechSynthesisRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
+  // New function to stop video recording
+  const stopVideoRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsVideoRecording(false);
     }
   };
 
+  // New function to handle video download
+  const handleDownload = () => {
+    if (recordedBlob) {
+      const url = URL.createObjectURL(recordedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'interview-recording.webm';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  // Modified startCamera function to include audio
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true,
+        audio: true 
+      });
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
     } catch (err) {
       console.error('Error accessing camera:', err);
-      showMediaWarning('Camera access is required for the interview.');
+      showMediaWarning('Camera and microphone access is required for the interview.');
     }
   };
 
-  const stopCamera = () => {
-    if (cameraWarnings >= 2) {
-      terminateInterview('Camera was disabled too many times. Interview terminated.');
-      return;
-    }
+  // Add recording controls to the camera feed section
+  const renderRecordingControls = () => (
+    <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
+      {!isVideoRecording ? (
+        <Button
+          variant="contained"
+          color="error"
+          startIcon={<FiberManualRecord />}
+          onClick={startVideoRecording}
+          disabled={!stream}
+        >
+          Record Interview
+        </Button>
+      ) : (
+        <Button
+          variant="contained"
+          color="error"
+          startIcon={<Stop />}
+          onClick={stopVideoRecording}
+        >
+          Stop Recording
+        </Button>
+      )}
+      
+      {recordedBlob && (
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<Download />}
+          onClick={handleDownload}
+        >
+          Save Recording
+        </Button>
+      )}
+    </Stack>
+  );
 
-    setCameraWarnings(prev => prev + 1);
-    setWarningMessage(`Warning: Camera is required. ${2 - cameraWarnings} attempts remaining before interview termination.`);
-    setShowWarning(true);
-  };
-
-  const startRecording = () => {
-    recognitionRef.current?.start();
-    setIsRecording(true);
-  };
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      if (microphoneWarnings >= 2) {
-        terminateInterview('Microphone was disabled too many times. Interview terminated.');
-        return;
-      }
-
-      setMicrophoneWarnings(prev => prev + 1);
-      setWarningMessage(`Warning: Microphone is required. ${2 - microphoneWarnings} attempts remaining before interview termination.`);
-      setShowWarning(true);
-    } else {
-      recognitionRef.current?.start();
-    }
-    setIsRecording(!isRecording);
-  };
-
-  const terminateInterview = (reason) => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    window.speechSynthesis.cancel();
-    
-    setMessages(prev => [...prev, { 
-      text: reason, 
-      sender: 'AI', 
-      isInterruption: true 
-    }]);
-    
-    // Delay the onComplete to allow the user to read the termination message
-    setTimeout(onComplete, 3000);
-  };
-
-  const showMediaWarning = (message) => {
-    setWarningMessage(message);
-    setShowWarning(true);
-  };
-
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    await processTranscript(input);
-    setInput('');
-  };
-
+  // Modify the camera feed section in the return statement
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
       <Grid container spacing={2}>
@@ -290,7 +183,8 @@ function Interview({ cvData, onComplete }) {
                 bgcolor: 'black',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                position: 'relative'
               }}
             >
               <video
@@ -304,7 +198,27 @@ function Interview({ cvData, onComplete }) {
                   objectFit: 'cover'
                 }}
               />
+              {isVideoRecording && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    bgcolor: 'error.main',
+                    color: 'white',
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: 1
+                  }}
+                >
+                  <FiberManualRecord sx={{ mr: 1 }} />
+                  <Typography variant="body2">Recording</Typography>
+                </Box>
+              )}
             </Box>
+            {renderRecordingControls()}
             <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <IconButton
                 color={isRecording ? 'error' : 'primary'}
@@ -324,6 +238,7 @@ function Interview({ cvData, onComplete }) {
           </Paper>
         </Grid>
 
+        {/* Rest of the component remains the same... */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ height: '100%', overflow: 'hidden' }}>
             <Box sx={{ p: 2, bgcolor: 'primary.main', color: 'white' }}>
@@ -349,11 +264,11 @@ function Interview({ cvData, onComplete }) {
                   key={index}
                   sx={{
                     display: 'flex',
-                    justifyContent: message.sender === 'AI' ? 'flex-start' : 'flex-end',
+                    justifyContent: message.sender === 'ai' ? 'flex-start' : 'flex-end',
                     mb: 2
                   }}
                 >
-                  {message.sender === 'AI' && (
+                  {message.sender === 'ai' && (
                     <Avatar sx={{ bgcolor: message.isInterruption ? 'error.main' : 'primary.main', mr: 1 }}>
                       <Person />
                     </Avatar>
@@ -362,15 +277,15 @@ function Interview({ cvData, onComplete }) {
                     sx={{
                       maxWidth: '70%',
                       p: 2,
-                      bgcolor: message.sender === 'AI' 
+                      bgcolor: message.sender === 'ai' 
                         ? message.isInterruption ? 'error.light' : 'grey.100'
                         : 'primary.main',
-                      color: message.sender === 'AI' ? 'text.primary' : 'white',
+                      color: message.sender === 'ai' ? 'text.primary' : 'white',
                       position: 'relative'
                     }}
                   >
                     <Typography>{message.text}</Typography>
-                    {message.sender === 'AI' && (
+                    {message.sender === 'ai' && (
                       <IconButton
                         size="small"
                         onClick={() => speakText(message.text)}
@@ -422,7 +337,29 @@ function Interview({ cvData, onComplete }) {
         </Grid>
       </Grid>
 
-      {/* Warning Dialog */}
+      {/* Add Recording Complete Dialog */}
+      <Dialog
+        open={showRecordingComplete}
+        onClose={() => setShowRecordingComplete(false)}
+      >
+        <DialogTitle>Recording Complete</DialogTitle>
+        <DialogContent>
+          <Alert severity="success" sx={{ mt: 2 }}>
+            Your interview has been recorded successfully. You can now download the recording.
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowRecordingComplete(false)}>Close</Button>
+          <Button 
+            onClick={handleDownload} 
+            startIcon={<Download />}
+            variant="contained"
+          >
+            Download Recording
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog
         open={showWarning}
         onClose={() => setShowWarning(false)}
@@ -439,6 +376,7 @@ function Interview({ cvData, onComplete }) {
           </Button>
         </DialogActions>
       </Dialog>
+    </Box>
     </Box>
   );
 }

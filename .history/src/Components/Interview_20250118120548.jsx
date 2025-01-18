@@ -34,8 +34,6 @@ function Interview({ cvData, onComplete }) {
   const speechSynthesisRef = useRef(null);
   const interruptionTimerRef = useRef(null);
   const websocketRef = useRef(null);
-  const lastMessageRef = useRef(null);
-
   useEffect(() => {
     // Start camera and microphone automatically
     startCamera();
@@ -43,7 +41,7 @@ function Interview({ cvData, onComplete }) {
     initializeWebSocket();
 
     const initialMessage = "Hello! I'm your AI interviewer today. I've reviewed your CV and I'm ready to begin the interview. Are you ready to start?";
-    setMessages([{ text: initialMessage, sender: 'AI' }]);
+    // setMessages([{ text: initialMessage, sender: 'AI' }]);
     speakText(initialMessage);
 
     if ('webkitSpeechRecognition' in window) {
@@ -120,14 +118,6 @@ function Interview({ cvData, onComplete }) {
   };
 
   const handleAIResponse = (message) => {
-    // Check if this is the same as the last message
-    if (lastMessageRef.current === message) {
-      return; // Skip if it's a duplicate
-    }
-    
-    // Update the last message reference
-    lastMessageRef.current = message;
-
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsRecording(false);
@@ -135,9 +125,17 @@ function Interview({ cvData, onComplete }) {
 
     window.speechSynthesis.cancel();
     
-    setMessages(prev => [...prev, { text: message, sender: 'AI', isInterruption: true }]);
-    speakText(message);
+    // Prevent duplicate messages
+    const isDuplicate = messages.some(
+      msg => msg.text === message && msg.sender === 'AI'
+    );
+    
+    if (!isDuplicate) {
+      setMessages(prev => [...prev, { text: message, sender: 'AI', isInterruption: true }]);
+      speakText(message);
+    }
 
+    // Restart recording after a short delay
     setTimeout(() => {
       if (!isRecording) {
         startRecording();

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { AppBar, Toolbar, Typography, Button, Container, Box } from '@mui/material';
 import { Upload, Send, Assessment } from '@mui/icons-material';
+import CVUpload from './Components/CVUpload';
 import Interview from './Components/Interview';
 import Analytics from './Components/Analytics';
-import EnhancedCVUpload from './Components/CVUpload';
 
 function App() {
   const [step, setStep] = useState('upload');
@@ -41,7 +41,7 @@ function App() {
       </AppBar>
 
       <Container sx={{ py: 4 }}>
-        {step === 'upload' && <EnhancedCVUpload onUpload={setCvData} onComplete={() => setStep('interview')} />}
+        {step === 'upload' && <CVUpload onUpload={setCvData} onComplete={() => setStep('interview')} />}
         {step === 'interview' && <Interview cvData={cvData} onComplete={() => setStep('analytics')} />}
         {step === 'analytics' && <Analytics />}
       </Container>

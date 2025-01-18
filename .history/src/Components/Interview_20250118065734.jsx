@@ -17,6 +17,12 @@ import {
 } from '@mui/material';
 import { Send, Mic, Person, Videocam, VideocamOff, VolumeUp } from '@mui/icons-material';
 
+// Simulated questions that would come from websocket
+const simulatedQuestions = [
+  "I need to interrupt you there. Could you tell me about a challenging project you worked on?",
+  "Sorry to cut in, but I'd like to know more about your leadership experience.",
+  "Interesting point. Let me ask you specifically about your problem-solving approach."
+];
 
 function Interview({ cvData, onComplete }) {
   const [messages, setMessages] = useState([]);
@@ -25,6 +31,7 @@ function Interview({ cvData, onComplete }) {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [stream, setStream] = useState(null);
+  const [interruptionIndex, setInterruptionIndex] = useState(0);
   const [cameraWarnings, setCameraWarnings] = useState(0);
   const [microphoneWarnings, setMicrophoneWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
@@ -33,17 +40,37 @@ function Interview({ cvData, onComplete }) {
   const recognitionRef = useRef(null);
   const speechSynthesisRef = useRef(null);
   const interruptionTimerRef = useRef(null);
-  const websocketRef = useRef(null);
-  const lastMessageRef = useRef(null);
+  const wsRef = useRef(null);
 
   useEffect(() => {
+    // Initialize WebSocket connection
+    const cvResponse = localStorage.getItem('cvResponse');
+    const wsUrl = `ws://13.127.144.141:3004/ws/interview/${cvResponse}/`;
+    wsRef.current = new WebSocket(wsUrl);
+
+    wsRef.current.onopen = () => {
+      console.log('WebSocket connection established');
+    };
+
+    wsRef.current.onmessage = (event) => {
+      const response = JSON.parse(event.data);
+      handleWebSocketMessage(response);
+    };
+
+    wsRef.current.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    wsRef.current.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
+
     // Start camera and microphone automatically
     startCamera();
     startRecording();
-    initializeWebSocket();
 
     const initialMessage = "Hello! I'm your AI interviewer today. I've reviewed your CV and I'm ready to begin the interview. Are you ready to start?";
-    setMessages([{ text: initialMessage, sender: 'AI' }]);
+    setMessages([{ text: initialMessage, sender: 'ai' }]);
     speakText(initialMessage);
 
     if ('webkitSpeechRecognition' in window) {
@@ -84,87 +111,72 @@ function Interview({ cvData, onComplete }) {
       if (interruptionTimerRef.current) {
         clearTimeout(interruptionTimerRef.current);
       }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
   }, []);
 
-
-  const initializeWebSocket = () => {
-    websocketRef.current = new WebSocket(`ws://13.127.144.141:3004/ws/interview/${localStorage.getItem('cvResponse')}/`);
-
-    websocketRef.current.onopen = () => {
-      console.log('WebSocket connection established');
-    };
-
-    websocketRef.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.sender === 'AI') {
-          handleAIResponse(data.message);
+  useEffect(() => {
+    if (isRecording) {
+      const interruptionTime = Math.floor(Math.random() * (15000 - 8000) + 8000);
+      
+      interruptionTimerRef.current = setTimeout(() => {
+        if (interruptionIndex < simulatedQuestions.length) {
+          handleInterruption(simulatedQuestions[interruptionIndex]);
+          setInterruptionIndex(prev => prev + 1);
         }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+      }, interruptionTime);
+    } else {
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current);
+      }
+    }
+
+    return () => {
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current);
       }
     };
+  }, [isRecording, interruptionIndex]);
 
-    websocketRef.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      // Attempt to reconnect on error
-      setTimeout(initializeWebSocket, 5000);
-    };
-
-    websocketRef.current.onclose = () => {
-      console.log('WebSocket connection closed');
-      // Attempt to reconnect after 5 seconds
-      setTimeout(initializeWebSocket, 5000);
-    };
+  const handleWebSocketMessage = (response) => {
+    if (response.sender === 'AI') {
+      setMessages(prev => [...prev, { text: response.message, sender: 'ai' }]);
+      speakText(response.message);
+      setIsThinking(false);
+    }
   };
 
-  const handleAIResponse = (message) => {
-    // Check if this is the same as the last message
-    if (lastMessageRef.current === message) {
-      return; // Skip if it's a duplicate
-    }
-    
-    // Update the last message reference
-    lastMessageRef.current = message;
-
+  const handleInterruption = (question) => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsRecording(false);
     }
 
     window.speechSynthesis.cancel();
-    
-    setMessages(prev => [...prev, { text: message, sender: 'AI', isInterruption: true }]);
-    speakText(message);
-
-    setTimeout(() => {
-      if (!isRecording) {
-        startRecording();
-      }
-    }, 1000);
+    setMessages(prev => [...prev, { text: question, sender: 'ai', isInterruption: true }]);
+    speakText(question);
   };
-
 
   const processTranscript = async (text) => {
     try {
       setMessages(prev => [...prev, { text, sender: 'user' }]);
       setIsThinking(true);
 
-      const response = await axios.post('http://13.127.144.141:3004/api/interview_conversation/post/', {
-        sender: 'candidate',
-        message: text,
-        interview:localStorage.getItem('cvResponse')
-        // cvData
-      });
-      console.log("🚀 ~ processTranscript ~ response:", response)
-
-      // const aiResponse = response.data || 
-      //   "Thank you for your response. Could you elaborate more on that?";
-
-      // setMessages(prev => [...prev, { text: aiResponse, sender: 'AI' }]);
-      // speakText(aiResponse);
-      setIsThinking(false);
+      // Send message through WebSocket
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          sender: 'candidate',
+          message: text,
+          interview: localStorage.getItem('cvResponse')
+        }));
+      } else {
+        console.error('WebSocket is not connected');
+        const fallbackMessage = "I apologize, but I'm having trouble connecting to the server. Please try again in a moment.";
+        setMessages(prev => [...prev, { text: fallbackMessage, sender: 'ai' }]);
+        setIsThinking(false);
+      }
     } catch (error) {
       console.error('Error processing transcript:', error);
       setIsThinking(false);
@@ -250,7 +262,7 @@ function Interview({ cvData, onComplete }) {
     
     setMessages(prev => [...prev, { 
       text: reason, 
-      sender: 'AI', 
+      sender: 'ai', 
       isInterruption: true 
     }]);
     
@@ -349,11 +361,11 @@ function Interview({ cvData, onComplete }) {
                   key={index}
                   sx={{
                     display: 'flex',
-                    justifyContent: message.sender === 'AI' ? 'flex-start' : 'flex-end',
+                    justifyContent: message.sender === 'ai' ? 'flex-start' : 'flex-end',
                     mb: 2
                   }}
                 >
-                  {message.sender === 'AI' && (
+                  {message.sender === 'ai' && (
                     <Avatar sx={{ bgcolor: message.isInterruption ? 'error.main' : 'primary.main', mr: 1 }}>
                       <Person />
                     </Avatar>
@@ -362,15 +374,15 @@ function Interview({ cvData, onComplete }) {
                     sx={{
                       maxWidth: '70%',
                       p: 2,
-                      bgcolor: message.sender === 'AI' 
+                      bgcolor: message.sender === 'ai' 
                         ? message.isInterruption ? 'error.light' : 'grey.100'
                         : 'primary.main',
-                      color: message.sender === 'AI' ? 'text.primary' : 'white',
+                      color: message.sender === 'ai' ? 'text.primary' : 'white',
                       position: 'relative'
                     }}
                   >
                     <Typography>{message.text}</Typography>
-                    {message.sender === 'AI' && (
+                    {message.sender === 'ai' && (
                       <IconButton
                         size="small"
                         onClick={() => speakText(message.text)}
@@ -390,7 +402,6 @@ function Interview({ cvData, onComplete }) {
                 </Box>
               )}
             </Box>
-
             <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <TextField

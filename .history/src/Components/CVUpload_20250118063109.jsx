@@ -65,13 +65,11 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
         method: 'POST',
         body: formDataToSend,
       });
-      console.log("🚀 ~ handleSubmit ~ response:", response.data)
+      console.log("🚀 ~ handleSubmit ~ response:", response)
   
       if (response.ok) {
-
         const result = await response.json();
         console.log('API Response:', result);
-        localStorage.setItem('cvResponse', JSON.stringify(result.data));
   
         // Show success message
         setShowSuccess(true);
@@ -134,7 +132,7 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 name="jd"
                 multiline
                 rows={4}
-                
+
                 value={formData.jd}
                 onChange={handleInputChange}
                 variant="outlined"

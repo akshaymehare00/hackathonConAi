@@ -134,7 +134,7 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 name="jd"
                 multiline
                 rows={4}
-                
+
                 value={formData.jd}
                 onChange={handleInputChange}
                 variant="outlined"

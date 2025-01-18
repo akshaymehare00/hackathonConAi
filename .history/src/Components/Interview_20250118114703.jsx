@@ -17,6 +17,12 @@ import {
 } from '@mui/material';
 import { Send, Mic, Person, Videocam, VideocamOff, VolumeUp } from '@mui/icons-material';
 
+// Simulated questions that would come from websocket
+const simulatedQuestions = [
+  "I need to interrupt you there. Could you tell me about a challenging project you worked on?",
+  "Sorry to cut in, but I'd like to know more about your leadership experience.",
+  "Interesting point. Let me ask you specifically about your problem-solving approach."
+];
 
 function Interview({ cvData, onComplete }) {
   const [messages, setMessages] = useState([]);
@@ -25,6 +31,7 @@ function Interview({ cvData, onComplete }) {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [stream, setStream] = useState(null);
+  const [interruptionIndex, setInterruptionIndex] = useState(0);
   const [cameraWarnings, setCameraWarnings] = useState(0);
   const [microphoneWarnings, setMicrophoneWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
@@ -34,8 +41,6 @@ function Interview({ cvData, onComplete }) {
   const speechSynthesisRef = useRef(null);
   const interruptionTimerRef = useRef(null);
   const websocketRef = useRef(null);
-  const lastMessageRef = useRef(null);
-
   useEffect(() => {
     // Start camera and microphone automatically
     startCamera();
@@ -108,8 +113,6 @@ function Interview({ cvData, onComplete }) {
 
     websocketRef.current.onerror = (error) => {
       console.error('WebSocket error:', error);
-      // Attempt to reconnect on error
-      setTimeout(initializeWebSocket, 5000);
     };
 
     websocketRef.current.onclose = () => {
@@ -119,32 +122,51 @@ function Interview({ cvData, onComplete }) {
     };
   };
 
-  const handleAIResponse = (message) => {
-    // Check if this is the same as the last message
-    if (lastMessageRef.current === message) {
-      return; // Skip if it's a duplicate
+  useEffect(() => {
+    if (isRecording) {
+      const interruptionTime = Math.floor(Math.random() * (15000 - 8000) + 8000);
+      
+      interruptionTimerRef.current = setTimeout(() => {
+        if (interruptionIndex < simulatedQuestions.length) {
+          handleInterruption(simulatedQuestions[interruptionIndex]);
+          setInterruptionIndex(prev => prev + 1);
+        }
+      }, interruptionTime);
+    } else {
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current);
+      }
     }
-    
-    // Update the last message reference
-    lastMessageRef.current = message;
 
+    return () => {
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current);
+      }
+    };
+  }, [isRecording, interruptionIndex]);
+
+
+  const handleAIResponse = (message) => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsRecording(false);
     }
 
     window.speechSynthesis.cancel();
-    
     setMessages(prev => [...prev, { text: message, sender: 'AI', isInterruption: true }]);
     speakText(message);
-
-    setTimeout(() => {
-      if (!isRecording) {
-        startRecording();
-      }
-    }, 1000);
   };
 
+  const handleInterruption = (question) => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+
+    window.speechSynthesis.cancel();
+    setMessages(prev => [...prev, { text: question, sender: 'AI', isInterruption: true }]);
+    speakText(question);
+  };
 
   const processTranscript = async (text) => {
     try {

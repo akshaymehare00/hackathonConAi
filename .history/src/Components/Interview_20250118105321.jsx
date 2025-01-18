@@ -17,6 +17,12 @@ import {
 } from '@mui/material';
 import { Send, Mic, Person, Videocam, VideocamOff, VolumeUp } from '@mui/icons-material';
 
+// Simulated questions that would come from websocket
+const simulatedQuestions = [
+  "I need to interrupt you there. Could you tell me about a challenging project you worked on?",
+  "Sorry to cut in, but I'd like to know more about your leadership experience.",
+  "Interesting point. Let me ask you specifically about your problem-solving approach."
+];
 
 function Interview({ cvData, onComplete }) {
   const [messages, setMessages] = useState([]);
@@ -25,6 +31,7 @@ function Interview({ cvData, onComplete }) {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [stream, setStream] = useState(null);
+  const [interruptionIndex, setInterruptionIndex] = useState(0);
   const [cameraWarnings, setCameraWarnings] = useState(0);
   const [microphoneWarnings, setMicrophoneWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
@@ -33,14 +40,11 @@ function Interview({ cvData, onComplete }) {
   const recognitionRef = useRef(null);
   const speechSynthesisRef = useRef(null);
   const interruptionTimerRef = useRef(null);
-  const websocketRef = useRef(null);
-  const lastMessageRef = useRef(null);
 
   useEffect(() => {
     // Start camera and microphone automatically
     startCamera();
     startRecording();
-    initializeWebSocket();
 
     const initialMessage = "Hello! I'm your AI interviewer today. I've reviewed your CV and I'm ready to begin the interview. Are you ready to start?";
     setMessages([{ text: initialMessage, sender: 'AI' }]);
@@ -87,64 +91,39 @@ function Interview({ cvData, onComplete }) {
     };
   }, []);
 
-
-  const initializeWebSocket = () => {
-    websocketRef.current = new WebSocket(`ws://13.127.144.141:3004/ws/interview/${localStorage.getItem('cvResponse')}/`);
-
-    websocketRef.current.onopen = () => {
-      console.log('WebSocket connection established');
-    };
-
-    websocketRef.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.sender === 'AI') {
-          handleAIResponse(data.message);
+  useEffect(() => {
+    if (isRecording) {
+      const interruptionTime = Math.floor(Math.random() * (15000 - 8000) + 8000);
+      
+      interruptionTimerRef.current = setTimeout(() => {
+        if (interruptionIndex < simulatedQuestions.length) {
+          handleInterruption(simulatedQuestions[interruptionIndex]);
+          setInterruptionIndex(prev => prev + 1);
         }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+      }, interruptionTime);
+    } else {
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current);
+      }
+    }
+
+    return () => {
+      if (interruptionTimerRef.current) {
+        clearTimeout(interruptionTimerRef.current);
       }
     };
+  }, [isRecording, interruptionIndex]);
 
-    websocketRef.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      // Attempt to reconnect on error
-      setTimeout(initializeWebSocket, 5000);
-    };
-
-    websocketRef.current.onclose = () => {
-      console.log('WebSocket connection closed');
-      // Attempt to reconnect after 5 seconds
-      setTimeout(initializeWebSocket, 5000);
-    };
-  };
-
-  const handleAIResponse = (message) => {
-    // Check if this is the same as the last message
-    if (lastMessageRef.current === message) {
-      return; // Skip if it's a duplicate
-    }
-    
-    // Update the last message reference
-    lastMessageRef.current = message;
-
+  const handleInterruption = (question) => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsRecording(false);
     }
 
     window.speechSynthesis.cancel();
-    
-    setMessages(prev => [...prev, { text: message, sender: 'AI', isInterruption: true }]);
-    speakText(message);
-
-    setTimeout(() => {
-      if (!isRecording) {
-        startRecording();
-      }
-    }, 1000);
+    setMessages(prev => [...prev, { text: question, sender: 'AI', isInterruption: true }]);
+    speakText(question);
   };
-
 
   const processTranscript = async (text) => {
     try {
@@ -159,11 +138,11 @@ function Interview({ cvData, onComplete }) {
       });
       console.log("🚀 ~ processTranscript ~ response:", response)
 
-      // const aiResponse = response.data || 
-      //   "Thank you for your response. Could you elaborate more on that?";
+      const aiResponse = response.data || 
+        "Thank you for your response. Could you elaborate more on that?";
 
-      // setMessages(prev => [...prev, { text: aiResponse, sender: 'AI' }]);
-      // speakText(aiResponse);
+      setMessages(prev => [...prev, { text: aiResponse, sender: 'AI' }]);
+      speakText(aiResponse);
       setIsThinking(false);
     } catch (error) {
       console.error('Error processing transcript:', error);

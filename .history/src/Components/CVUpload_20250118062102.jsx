@@ -47,48 +47,22 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
     });
   };
 
-  const handleSubmit = async () => {
-    if (!file) {
-      console.error("No file selected");
-      return;
-    }
-  
-    const formDataToSend = new FormData();
-    formDataToSend.append('full_name', formData.fullName);
-    formDataToSend.append('email', formData.email);
-    formDataToSend.append('phone_number', formData.mobile);
-    formDataToSend.append('cv_document', file);
-    formDataToSend.append('jd', formData.jd);
-  
-    try {
-      const response = await fetch('http://13.127.144.141:3004/api/candidates/add-candidate/', {
-        method: 'POST',
-        body: formDataToSend,
-      });
-      console.log("🚀 ~ handleSubmit ~ response:", response.data)
-  
-      if (response.ok) {
-
-        const result = await response.json();
-        console.log('API Response:', result);
-        localStorage.setItem('cvResponse', JSON.stringify(result.data));
-  
-        // Show success message
-        setShowSuccess(true);
-  
-        // Navigate after success
-        setTimeout(() => {
-          onComplete();
-        }, 1500);
-      } else {
-        const error = await response.json();
-        console.error('Error:', error);
-      }
-    } catch (err) {
-      console.error('Network Error:', err);
-    }
+  const handleSubmit = () => {
+    // Log form data and file information
+    console.log('Form Data:', {
+      ...formData,
+      fileName: file?.name,
+      fileSize: file?.size,
+      fileType: file?.type
+    });
+    
+    setShowSuccess(true);
+    
+    // Use timeout to show success message before navigation
+    setTimeout(() => {
+      onComplete();
+    }, 1500);
   };
-  
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', mt: 4, px: 2 }}>
@@ -132,9 +106,6 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 fullWidth
                 label="Job Description"
                 name="jd"
-                multiline
-                rows={4}
-                
                 value={formData.jd}
                 onChange={handleInputChange}
                 variant="outlined"

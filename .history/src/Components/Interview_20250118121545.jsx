@@ -34,8 +34,6 @@ function Interview({ cvData, onComplete }) {
   const speechSynthesisRef = useRef(null);
   const interruptionTimerRef = useRef(null);
   const websocketRef = useRef(null);
-  const lastMessageRef = useRef(null);
-
   useEffect(() => {
     // Start camera and microphone automatically
     startCamera();
@@ -43,7 +41,7 @@ function Interview({ cvData, onComplete }) {
     initializeWebSocket();
 
     const initialMessage = "Hello! I'm your AI interviewer today. I've reviewed your CV and I'm ready to begin the interview. Are you ready to start?";
-    setMessages([{ text: initialMessage, sender: 'AI' }]);
+    // setMessages([{ text: initialMessage, sender: 'AI' }]);
     speakText(initialMessage);
 
     if ('webkitSpeechRecognition' in window) {

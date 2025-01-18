@@ -12,15 +12,16 @@ import {
   Grid
 } from '@mui/material';
 import { CloudUpload, Description } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 
-function EnhancedCVUpload({ onUpload, onComplete }) {
+function EnhancedCVUpload() {
+  const navigate = useNavigate();
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState(null);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    mobile: '',
-    jd:''
+    mobile: ''
   });
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -33,11 +34,8 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
     }
   };
 
-  const handleFile = async (file) => {
+  const handleFile = (file) => {
     setFile(file);
-    // Read file content and pass it to parent component
-    const text = await file.text();
-    onUpload(text);
   };
 
   const handleInputChange = (e) => {
@@ -47,48 +45,22 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
     });
   };
 
-  const handleSubmit = async () => {
-    if (!file) {
-      console.error("No file selected");
-      return;
-    }
-  
-    const formDataToSend = new FormData();
-    formDataToSend.append('full_name', formData.fullName);
-    formDataToSend.append('email', formData.email);
-    formDataToSend.append('phone_number', formData.mobile);
-    formDataToSend.append('cv_document', file);
-    formDataToSend.append('jd', formData.jd);
-  
-    try {
-      const response = await fetch('http://13.127.144.141:3004/api/candidates/add-candidate/', {
-        method: 'POST',
-        body: formDataToSend,
-      });
-      console.log("🚀 ~ handleSubmit ~ response:", response.data)
-  
-      if (response.ok) {
-
-        const result = await response.json();
-        console.log('API Response:', result);
-        localStorage.setItem('cvResponse', JSON.stringify(result.data));
-  
-        // Show success message
-        setShowSuccess(true);
-  
-        // Navigate after success
-        setTimeout(() => {
-          onComplete();
-        }, 1500);
-      } else {
-        const error = await response.json();
-        console.error('Error:', error);
-      }
-    } catch (err) {
-      console.error('Network Error:', err);
-    }
+  const handleSubmit = () => {
+    // Log form data and file information
+    console.log('Form Data:', {
+      ...formData,
+      fileName: file?.name,
+      fileSize: file?.size,
+      fileType: file?.type
+    });
+    
+    setShowSuccess(true);
+    
+    // Navigate after a brief delay to show success message
+    setTimeout(() => {
+      navigate('/next-page');
+    }, 1500);
   };
-  
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', mt: 4, px: 2 }}>
@@ -124,18 +96,6 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                 label="Mobile Number"
                 name="mobile"
                 value={formData.mobile}
-                onChange={handleInputChange}
-                variant="outlined"
-                required
-              />
-              <TextField
-                fullWidth
-                label="Job Description"
-                name="jd"
-                multiline
-                rows={4}
-                
-                value={formData.jd}
                 onChange={handleInputChange}
                 variant="outlined"
                 required
@@ -223,7 +183,7 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
                   height: 48
                 }}
               >
-                Start Interview
+                Upload & Continue
               </Button>
             </Box>
           </Grid>
@@ -234,7 +194,7 @@ function EnhancedCVUpload({ onUpload, onComplete }) {
             severity="success" 
             sx={{ mt: 2 }}
           >
-            CV uploaded successfully! Starting interview...
+            CV uploaded successfully! Redirecting...
           </Alert>
         )}
       </Paper>
