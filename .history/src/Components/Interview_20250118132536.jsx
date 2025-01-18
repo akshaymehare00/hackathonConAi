@@ -20,8 +20,7 @@ import {
   Fade,
   SpeedDial,
   SpeedDialIcon,
-  SpeedDialAction,
-  DialogContentText
+  SpeedDialAction
 } from '@mui/material';
 import { 
   Send, 
@@ -31,9 +30,6 @@ import {
   VideocamOff, 
   VolumeUp,
   VolumeOff,
-  ExitToApp,
-  Assessment,
-  Close,
   MoreVert,
   Settings,
   Help
@@ -63,15 +59,6 @@ function Interview({ cvData, onComplete }) {
   const [showControls, setShowControls] = useState(true);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [endReason, setEndReason] = useState('complete');
-  const silenceTimerRef = useRef(null);
-  const lastSpeechTimestampRef = useRef(Date.now());
-
-
-  const [recordedChunks, setRecordedChunks] = useState([]);
-  const mediaRecorderRef = useRef(null);
-  const recordingStreamRef = useRef(null);
-
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -191,9 +178,6 @@ function Interview({ cvData, onComplete }) {
 
   const processTranscript = async (text) => {
     try {
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
       setMessages(prev => [...prev, { text, sender: 'user' }]);
       setIsThinking(true);
 
@@ -242,84 +226,17 @@ function Interview({ cvData, onComplete }) {
 
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: true,
-        audio: true 
-      });
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
-      startAutoRecording(mediaStream);
     } catch (err) {
       console.error('Error accessing camera:', err);
       showMediaWarning('Camera access is required for the interview.');
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      if (recordingStreamRef.current) {
-        recordingStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-    }
-  };
-
-  const downloadRecording = () => {
-    const blob = new Blob(recordedChunks, {
-      type: 'video/webm'
-    });
-
-    // Create download link
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'interview-recording.webm';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    // Upload to server
-    uploadRecording(blob);
-  };
-  const uploadRecording = async (blob) => {
-    try {
-      const formData = new FormData();
-      formData.append('recording', blob, 'interview-recording.webm');
-      formData.append('interview_id', localStorage.getItem('cvResponse'));
-
-      await axios.post('http://13.127.144.141:3004/api/recordings/upload/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-    } catch (error) {
-      console.error('Error uploading recording:', error);
-    }
-  };
-  const startAutoRecording = (mediaStream) => {
-    try {
-      recordingStreamRef.current = mediaStream;
-      const mediaRecorder = new MediaRecorder(mediaStream, {
-        mimeType: 'video/webm;codecs=vp9,opus'
-      });
-
-      mediaRecorderRef.current = mediaRecorder;
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          setRecordedChunks(chunks => [...chunks, event.data]);
-        }
-      };
-
-      // Start recording with 1-second time slices
-      mediaRecorder.start(1000);
-    } catch (error) {
-      console.error('Error starting recording:', error);
-    }
-  };
   const stopCamera = () => {
     if (cameraWarnings >= 2) {
       terminateInterview('Camera was disabled too many times. Interview terminated.');
@@ -332,50 +249,8 @@ function Interview({ cvData, onComplete }) {
   };
 
   const startRecording = () => {
-    if (!recognitionRef.current) return;
-
-    recognitionRef.current.onstart = () => {
-      setIsRecording(true);
-      lastSpeechTimestampRef.current = Date.now();
-      
-      // Start silence detection
-      silenceTimerRef.current = setInterval(() => {
-        const timeSinceLastSpeech = Date.now() - lastSpeechTimestampRef.current;
-        if (timeSinceLastSpeech > 5000 && transcript) { // 5 seconds
-          // Process transcript and reset
-          processTranscript(transcript);
-          clearInterval(silenceTimerRef.current);
-        }
-      }, 1000);
-    };
-
-    recognitionRef.current.onend = () => {
-      setIsRecording(false);
-      if (silenceTimerRef.current) {
-        clearInterval(silenceTimerRef.current);
-      }
-    };
-
-    recognitionRef.current.onresult = async (event) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' ';
-          await processTranscript(finalTranscript.trim());
-        } else {
-          interimTranscript += transcript;
-        }
-      }
-
-      // Update last speech timestamp whenever we get new speech input
-      lastSpeechTimestampRef.current = Date.now();
-      setTranscript(finalTranscript + interimTranscript);
-    };
-
-    recognitionRef.current.start();
+    recognitionRef.current?.start();
+    setIsRecording(true);
   };
 
   const toggleRecording = () => {
@@ -430,7 +305,6 @@ function Interview({ cvData, onComplete }) {
   };
 
   const confirmEndInterview = () => {
-    stopRecording();
     // Clean up resources
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -450,12 +324,6 @@ function Interview({ cvData, onComplete }) {
       sender: 'AI',
       isInterruption: endReason === 'leave'
     }]);
-
-    // Show download button after recording is stopped
-    if (recordedChunks.length > 0) {
-      downloadRecording();
-    }
-    
     
     // Delay the onComplete to allow the user to read the end message
     setTimeout(onComplete, 2000);

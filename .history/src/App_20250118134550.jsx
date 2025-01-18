@@ -3,7 +3,6 @@ import { AppBar, Toolbar, Typography, Button, Container, Box } from '@mui/materi
 import { Upload, Send, Assessment } from '@mui/icons-material';
 import Analytics from './Components/Analytics';
 import EnhancedCVUpload from './Components/CVUpload';
-import Interview from './Components/Interview';
 
 function App() {
   const [step, setStep] = useState('upload');

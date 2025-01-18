@@ -17,11 +17,7 @@ import {
   CircularProgress,
   Tooltip,
   useTheme,
-  Fade,
-  SpeedDial,
-  SpeedDialIcon,
-  SpeedDialAction,
-  DialogContentText
+  Fade
 } from '@mui/material';
 import { 
   Send, 
@@ -31,9 +27,6 @@ import {
   VideocamOff, 
   VolumeUp,
   VolumeOff,
-  ExitToApp,
-  Assessment,
-  Close,
   MoreVert,
   Settings,
   Help
@@ -60,18 +53,6 @@ function Interview({ cvData, onComplete }) {
   const lastMessageRef = useRef(null);
   const messagesEndRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const [showEndDialog, setShowEndDialog] = useState(false);
-  const [endReason, setEndReason] = useState('complete');
-  const silenceTimerRef = useRef(null);
-  const lastSpeechTimestampRef = useRef(Date.now());
-
-
-  const [recordedChunks, setRecordedChunks] = useState([]);
-  const mediaRecorderRef = useRef(null);
-  const recordingStreamRef = useRef(null);
-
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -191,9 +172,6 @@ function Interview({ cvData, onComplete }) {
 
   const processTranscript = async (text) => {
     try {
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
       setMessages(prev => [...prev, { text, sender: 'user' }]);
       setIsThinking(true);
 
@@ -242,84 +220,17 @@ function Interview({ cvData, onComplete }) {
 
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: true,
-        audio: true 
-      });
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
-      startAutoRecording(mediaStream);
     } catch (err) {
       console.error('Error accessing camera:', err);
       showMediaWarning('Camera access is required for the interview.');
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      if (recordingStreamRef.current) {
-        recordingStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-    }
-  };
-
-  const downloadRecording = () => {
-    const blob = new Blob(recordedChunks, {
-      type: 'video/webm'
-    });
-
-    // Create download link
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'interview-recording.webm';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    // Upload to server
-    uploadRecording(blob);
-  };
-  const uploadRecording = async (blob) => {
-    try {
-      const formData = new FormData();
-      formData.append('recording', blob, 'interview-recording.webm');
-      formData.append('interview_id', localStorage.getItem('cvResponse'));
-
-      await axios.post('http://13.127.144.141:3004/api/recordings/upload/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-    } catch (error) {
-      console.error('Error uploading recording:', error);
-    }
-  };
-  const startAutoRecording = (mediaStream) => {
-    try {
-      recordingStreamRef.current = mediaStream;
-      const mediaRecorder = new MediaRecorder(mediaStream, {
-        mimeType: 'video/webm;codecs=vp9,opus'
-      });
-
-      mediaRecorderRef.current = mediaRecorder;
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          setRecordedChunks(chunks => [...chunks, event.data]);
-        }
-      };
-
-      // Start recording with 1-second time slices
-      mediaRecorder.start(1000);
-    } catch (error) {
-      console.error('Error starting recording:', error);
-    }
-  };
   const stopCamera = () => {
     if (cameraWarnings >= 2) {
       terminateInterview('Camera was disabled too many times. Interview terminated.');
@@ -332,50 +243,8 @@ function Interview({ cvData, onComplete }) {
   };
 
   const startRecording = () => {
-    if (!recognitionRef.current) return;
-
-    recognitionRef.current.onstart = () => {
-      setIsRecording(true);
-      lastSpeechTimestampRef.current = Date.now();
-      
-      // Start silence detection
-      silenceTimerRef.current = setInterval(() => {
-        const timeSinceLastSpeech = Date.now() - lastSpeechTimestampRef.current;
-        if (timeSinceLastSpeech > 5000 && transcript) { // 5 seconds
-          // Process transcript and reset
-          processTranscript(transcript);
-          clearInterval(silenceTimerRef.current);
-        }
-      }, 1000);
-    };
-
-    recognitionRef.current.onend = () => {
-      setIsRecording(false);
-      if (silenceTimerRef.current) {
-        clearInterval(silenceTimerRef.current);
-      }
-    };
-
-    recognitionRef.current.onresult = async (event) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' ';
-          await processTranscript(finalTranscript.trim());
-        } else {
-          interimTranscript += transcript;
-        }
-      }
-
-      // Update last speech timestamp whenever we get new speech input
-      lastSpeechTimestampRef.current = Date.now();
-      setTranscript(finalTranscript + interimTranscript);
-    };
-
-    recognitionRef.current.start();
+    recognitionRef.current?.start();
+    setIsRecording(true);
   };
 
   const toggleRecording = () => {
@@ -424,69 +293,26 @@ function Interview({ cvData, onComplete }) {
     setInput('');
   };
 
-  const handleEndInterview = (reason) => {
-    setEndReason(reason);
-    setShowEndDialog(true);
-  };
-
-  const confirmEndInterview = () => {
-    stopRecording();
-    // Clean up resources
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    window.speechSynthesis.cancel();
-    
-    // Add end message based on reason
-    const endMessage = endReason === 'complete' 
-      ? "Thank you for completing the interview. Let's review your performance."
-      : "Interview ended early. You can always come back and try again.";
-      
-    setMessages(prev => [...prev, { 
-      text: endMessage, 
-      sender: 'AI',
-      isInterruption: endReason === 'leave'
-    }]);
-
-    // Show download button after recording is stopped
-    if (recordedChunks.length > 0) {
-      downloadRecording();
-    }
-    
-    
-    // Delay the onComplete to allow the user to read the end message
-    setTimeout(onComplete, 2000);
-    setShowEndDialog(false);
-  };
-
-  const speedDialActions = [
-    { icon: <Assessment />, name: 'Complete Interview', onClick: () => handleEndInterview('complete') },
-    { icon: <ExitToApp />, name: 'Leave Interview', onClick: () => handleEndInterview('leave') }
-  ];
-
   return (
     <Box sx={{ 
-      height: 'calc(100vh - 64px)', // Subtract header height
-      width: '100%',
-      overflow: 'hidden', // Prevent outer scrolling
-      px: 3,
-      py: 2
+      maxWidth: 1400, 
+      mx: 'auto',
+      px: 2,
+      py: 3,
+      minHeight: '90vh',
+      bgcolor: 'background.default'
     }}>
-      <Grid container spacing={3} sx={{ height: '100%' }}>
+      <Grid container spacing={3}>
         {/* Left Panel - Camera Feed */}
-        <Grid item xs={12} md={5} sx={{ height: '100%' }}>
+        <Grid item xs={12} md={5}>
           <Paper 
             elevation={4} 
             sx={{ 
               height: '100%',
               borderRadius: 2,
               overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              background: theme.palette.background.paper
+              background: theme.palette.background.paper,
+              transition: 'all 0.3s ease'
             }}
           >
             <Box sx={{ 
@@ -505,8 +331,14 @@ function Interview({ cvData, onComplete }) {
                   <IconButton 
                     color={stream ? "primary" : "default"}
                     onClick={stream ? stopCamera : startCamera}
+                    sx={{ mr: 1 }}
                   >
                     {stream ? <Videocam /> : <VideocamOff />}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Settings">
+                  <IconButton>
+                    <Settings />
                   </IconButton>
                 </Tooltip>
               </Box>
@@ -517,8 +349,8 @@ function Interview({ cvData, onComplete }) {
               sx={{ 
                 position: 'relative',
                 width: '100%',
-                flex: 1,
-                bgcolor: 'black'
+                pt: '75%', // 4:3 Aspect Ratio
+                bgcolor: 'black',
               }}
             >
               <video
@@ -527,6 +359,9 @@ function Interview({ cvData, onComplete }) {
                 playsInline
                 muted
                 style={{ 
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover'
@@ -592,9 +427,11 @@ function Interview({ cvData, onComplete }) {
                 variant="outlined"
                 sx={{ 
                   p: 2,
-                  height: 100,
+                  minHeight: 100,
+                  maxHeight: 150,
                   overflow: 'auto',
-                  bgcolor: isRecording ? 'primary.50' : 'background.default'
+                  bgcolor: isRecording ? 'primary.50' : 'background.default',
+                  transition: 'background-color 0.3s ease'
                 }}
               >
                 <Typography 
@@ -612,15 +449,15 @@ function Interview({ cvData, onComplete }) {
         </Grid>
 
         {/* Right Panel - Chat Interface */}
-        <Grid item xs={12} md={7} sx={{ height: '100%' }}>
+        <Grid item xs={12} md={7}>
           <Paper 
             elevation={4} 
             sx={{ 
               height: '100%',
               borderRadius: 2,
+              overflow: 'hidden',
               display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
+              flexDirection: 'column'
             }}
           >
             {/* Chat Header */}
@@ -641,6 +478,16 @@ function Interview({ cvData, onComplete }) {
                   {isThinking ? 'Thinking...' : 'Online'}
                 </Typography>
               </Box>
+              <Tooltip title="Help">
+                <IconButton color="inherit">
+                  <Help />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="More options">
+                <IconButton color="inherit">
+                  <MoreVert />
+                </IconButton>
+              </Tooltip>
             </Box>
 
             {/* Messages Area */}
@@ -684,10 +531,28 @@ function Interview({ cvData, onComplete }) {
                         color: message.sender === 'AI' ? 'text.primary' : 'primary.contrastText',
                         borderRadius: message.sender === 'AI' 
                           ? '4px 20px 20px 20px'
-                          : '20px 4px 20px 20px'
+                          : '20px 4px 20px 20px',
+                        position: 'relative'
                       }}
                     >
                       <Typography variant="body1">{message.text}</Typography>
+                      {message.sender === 'AI' && !isMuted && (
+                        <IconButton
+                          size="small"
+                          onClick={() => speakText(message.text)}
+                          sx={{ 
+                            position: 'absolute',
+                            right: -36,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            bgcolor: 'background.paper',
+                            boxShadow: 1,
+                            '&:hover': { bgcolor: 'grey.100' }
+                          }}
+                        >
+                          <VolumeUp sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      )}
                     </Paper>
                   </Box>
                 </Fade>
@@ -733,89 +598,58 @@ function Interview({ cvData, onComplete }) {
                     }
                   }}
                 />
-                <Button
-                  variant="contained"
-                  onClick={handleSend}
-                  disabled={!input.trim()}
-                  sx={{ 
-                    minWidth: 100,
-                    borderRadius: 3
-                  }}
-                >
-                  Send
-                </Button>
+                <Tooltip title="Send message">
+                  <IconButton 
+                    color="primary" 
+                    onClick={handleSend}
+                    disabled={!input.trim()}
+                    sx={{ 
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      '&:hover': {
+                        bgcolor: 'primary.dark'
+                      },
+                      '&.Mui-disabled': {
+                        bgcolor: 'grey.300',
+                        color: 'grey.500'
+                      }
+                    }}
+                  >
+                    <Send />
+                  </IconButton>
+                </Tooltip>
               </Box>
             </Box>
           </Paper>
+
+          {/* End Interview Button */}
+          <Box sx={{ mt: 3, textAlign: 'center' }}>
+            <Button
+              variant="contained"
+              color="primary"
+              size="large"
+              onClick={onComplete}
+              sx={{ 
+                px: 4,
+                py: 1.5,
+                borderRadius: 3,
+                textTransform: 'none',
+                fontSize: '1.1rem',
+                fontWeight: 500,
+                boxShadow: 2,
+                '&:hover': {
+                  boxShadow: 4
+                }
+              }}
+            >
+              End Interview & View Analytics
+            </Button>
+          </Box>
         </Grid>
       </Grid>
 
-      <SpeedDial
-        ariaLabel="End Interview Options"
-        sx={{ position: 'absolute', bottom: 16, right: 16 }}
-        icon={<SpeedDialIcon icon={<Close />} />}
-        FabProps={{
-          sx: {
-            bgcolor: 'error.main',
-            '&:hover': {
-              bgcolor: 'error.dark',
-            }
-          }
-        }}
-      >
-        {speedDialActions.map((action) => (
-          <SpeedDialAction
-            key={action.name}
-            icon={action.icon}
-            tooltipTitle={action.name}
-            onClick={action.onClick}
-          />
-        ))}
-      </SpeedDial>
-
-      {/* End Interview Confirmation Dialog */}
+      {/* Warning Dialog */}
       <Dialog
-        open={showEndDialog}
-        onClose={() => setShowEndDialog(false)}
-        PaperProps={{
-          elevation: 5,
-          sx: { borderRadius: 2 }
-        }}
-      >
-        <DialogTitle sx={{ 
-          color: endReason === 'leave' ? 'error.main' : 'primary.main',
-          pb: 1
-        }}>
-          {endReason === 'complete' ? 'Complete Interview' : 'Leave Interview'}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {endReason === 'complete' 
-              ? "Are you sure you want to complete the interview? You'll be able to view your performance analytics after this."
-              : "Are you sure you want to leave the interview? Your progress will be saved, but the interview will end now."}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ p: 2, pt: 1 }}>
-          <Button 
-            onClick={() => setShowEndDialog(false)}
-            variant="outlined"
-            color={endReason === 'leave' ? 'error' : 'primary'}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={confirmEndInterview}
-            variant="contained"
-            color={endReason === 'leave' ? 'error' : 'primary'}
-            autoFocus
-          >
-            {endReason === 'complete' ? 'Complete Interview' : 'Leave Now'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-       {/* Warning Dialog */}
-       <Dialog
         open={showWarning}
         onClose={() => setShowWarning(false)}
         PaperProps={{
@@ -851,8 +685,6 @@ function Interview({ cvData, onComplete }) {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Warning Dialog remains the same */}
     </Box>
   );
 }
